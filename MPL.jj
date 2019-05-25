@@ -1,0 +1,367 @@
+/* JavaCC input file for a simple imperative language. */
+PARSER_BEGIN(MPL)
+   import java.io.*;
+   import java.util.*;
+   
+   class MPL {
+      private static final HashMap<String, Integer> map = new HashMap<String, Integer>();
+
+      public static void main(String[] args) throws ParseException, TokenMgrError {
+         if (args.length > 0) {
+            try {
+               MPL scan = new MPL(new FileInputStream(args[0]));
+               execute(scan.Program());
+            } catch (FileNotFoundException ex) {
+               System.out.println("File "+args[0]+" not found.");
+            }
+         } else {
+            System.out.println("Must specify source code file name.");
+         }
+      }
+
+      public void traverse(Node n) {
+	if(n!=null) {
+		System.out.println(n.label);
+		for(Node c : n.children) {
+			System.out.println(c); 
+		} 
+	}
+     }
+
+    public static int eval(Node n) {
+	if(n instanceof IntNode) {
+		IntNode x = (IntNode) n;
+		return x.value; 
+	}
+	else if(n instanceof IDNode) {
+		IDNode x = (IDNode) n;
+		return map.get(x.identifier); 
+	}
+	else if(n.children != null) {
+		int res = eval(n.children.get(0));
+		int current = 0;
+		for (Node b: n.children) {
+			if(b.label.equals("ADD")) {
+				res += eval(n.children.get(current+1)); 
+			} 
+			else if(b.label.equals("SUB")) {
+				res -= eval(n.children.get(current+1)); 
+			}
+			else if(b.label.equals("MUL")) {
+				res *= eval(n.children.get(current+1)); 
+			}
+			else if(b.label.equals("DIV")) {
+				res /= eval(n.children.get(current+1)); 
+			}
+			else if(b.label.equals("MODULO")) {
+				res %= eval(n.children.get(current+1)); 
+			}
+			else if(b.label.equals("GREATER")) { 
+				res -= eval(n.children.get(current+1));
+				if(res > 0 ) {
+					return 1; 
+				} 
+				else { 
+					return 0;
+				}
+			}
+			else if(b.label.equals("GREATEQU")) {
+				res -= eval(n.children.get(current+1));
+				if(res >= 0) {
+					return 1; 
+				} 
+				else {
+					return 0; 
+				}
+			}
+			else if(b.label.equals("LESS")) {
+				res -= eval(n.children.get(current+1));
+				if(res < 0) {
+					return 1; 
+				} 
+				else {
+					return 0; 
+				}
+			}
+			else if(b.label.equals("LESSEQU")) {
+				res -= eval(n.children.get(current+1));
+				if(res <= 0) { 
+					return 1;
+				} 
+				else {
+					return 0; 
+				}
+			}
+		current++;
+		}
+		return res;	
+	}
+	return -99;
+    }
+
+    public static void execute(Node n) {
+	if(n.label.equals("WHILE")) {
+		Node condition = n.children.get(0);
+		Node body = n.children.get(1);
+		while(eval(condition) != 0) {
+			execute(body); 
+		} 
+	} 
+	else if(n.label.equals("INPUT")) {
+		Scanner scan = new Scanner(System.in);
+		System.out.println("Input: ");
+		int input = scan.nextInt();
+		map.put(n.label, input); 
+	}
+	else if(n.label.equals("OUTPUT")) { 
+		System.out.println(eval(n.children.get(0)));	
+	}
+	else if(n.label.equals("ASSIGN")) { 
+		IDNode y = (IDNode) n.children.get(0);
+		String id = y.identifier;
+		int value = eval(n.children.get(1));
+		map.put(id, value);
+	}
+	else if(n.label.equals("BLOCK")) {
+		for(Node y: n.children) {
+			execute(y); 
+		} 
+	}
+	else if(n.label.equals("CONDITIONAL")) {
+		Node condition = n.children.get(0);
+		Node body = n.children.get(1);
+		if(eval(condition) != 0 ) {
+			execute(body); 
+		}
+		else if(n.children.size() == 3) { 
+			execute(n.children.get(2));
+		}
+	}
+    }
+   }
+PARSER_END(MPL)
+
+SKIP : { " " | "\t" | "\n" }
+TOKEN : { <WHILE : "while"> }
+TOKEN : { <INT : "0" | ["1"-"9"](["0"-"9"])*> }
+TOKEN : { <INPUT : "input"> }
+TOKEN : { <OUTPUT : "output"> } 
+TOKEN : { <ASSIGN : "is"> } 
+TOKEN : { <IF : "if"> }
+TOKEN : { <ELSE : "else"> } 
+TOKEN : { <ADD : "plus"> } 
+TOKEN : { <SUB : "minus"> } 
+TOKEN : { <MUL : "times"> } 
+TOKEN : { <DIV : "division"> } 
+TOKEN : { <MODULO : "modulo"> } 
+TOKEN : { <AND : "and"> } 
+TOKEN : { <OR : "or"> } 
+TOKEN : { <NOT : "not"> }
+TOKEN : { <EQUALS : "equals"> }
+TOKEN : { <NOTEQUAL : "is not"> }
+TOKEN : { <LESS : "less than"> } 
+TOKEN : { <GREATER : "greater than"> } 
+TOKEN : { <LESSEQU : "less or equal"> } 
+TOKEN : { <GREATEQU : "greater or equal" > }
+TOKEN : { <RPAREN : ")" > }
+TOKEN : { <LPAREN : "(" > }
+TOKEN : { <RBRACK : "}" > }
+TOKEN : { <LBRACK : "{" > }  
+TOKEN : { <PERIOD : "." > }   
+TOKEN : { <ID : (["a"-"z"]|["A"-"Z"]| "_")(["a"-"z"]|["A"-"Z"]|["0"-"9"]| "_")*> }
+
+Node Program():
+{
+	Node n;
+	Node child;
+}
+{	{ n = new Node("BLOCK"); }
+	(child = Statement() { n.addChild(child); }  )+
+	<EOF>		       
+	{ return n; } 
+}
+
+Node Statement():
+{
+	Node n;
+	Node child; 
+}
+{
+	
+	(n = Input() {}
+	|
+	n = Output() {}
+	| 
+	n = Assignment() {}
+	| 
+	n = Conditional() {}
+	| 
+	n = Loop() {})
+	{ return n; }  
+}
+
+Node Input():
+{
+	Node n;
+	Token t;
+}
+{
+	<INPUT> { n = new Node("INPUT"); } 
+	<LPAREN> 
+	t = <ID> { n.addChild(new IDNode(t.image)); }  
+	<RPAREN> 
+	<PERIOD>
+		{ return n; }
+}
+
+Node Output():
+{
+	Node n;
+	Node child;
+}
+{
+        <OUTPUT> { n = new Node("OUTPUT"); }
+	<LPAREN> 
+	child = Exp() {n.addChild(child); } 
+	<RPAREN> 
+	<PERIOD>
+	{ return n; }
+}
+
+Node Assignment():
+{
+	Node n;
+	Node child;
+	Token t;
+}
+{
+	{ n = new Node("ASSIGN"); }
+        t = <ID>	{ n.addChild(new IDNode(t.image)); } 
+	<ASSIGN> 
+	child = Exp()	{ n.addChild(child); }  
+	<PERIOD>
+	{ return n; } 
+}
+
+Node Loop():
+{
+	Node n;
+	Node child;
+}
+{
+        <WHILE> { n = new Node("WHILE"); }
+	<LPAREN> 
+	child = Relation() { n.addChild(child); } 
+	<RPAREN> 
+	child = Block() { n.addChild(child); }
+	{ return n; }
+}
+
+Node Conditional():
+{
+	Node n;
+	Node child;
+}
+{
+        <IF> {n = new Node("IF"); }
+	<LPAREN> 
+	child = Relation() { n.addChild(child); } 
+	<RPAREN> 
+	child = Block() { n.addChild(child); } 
+	(
+		<ELSE> { n.addChild(new Node("ELSE")); }
+		child = Block())? { n.addChild(child); }
+	{ return n; } 
+}
+
+Node Relation():
+{
+	Node n;
+	Node child; 
+}
+{
+	{ n = new Node("RELATION"); } 
+	child = Exp() { n.addChild(child); } 
+	(
+		<EQUALS> { n.addChild(new Node("EQUALS")); }
+		| 
+		<NOTEQUAL> { n.addChild(new Node("NOT EQUAL")); }
+		| 
+		<LESS> { n.addChild(new Node("LESS")); }
+		| 
+		<GREATER> { n.addChild(new Node("GREATER")); } 
+		| 
+		<LESSEQU> { n.addChild(new Node("LESS EQUAL")); } 
+		| 
+		<GREATEQU> { n.addChild(new Node("GREATER EQUAL")); } 
+	) 
+	child = Exp() { n.addChild(child); }  
+	{ return n; } 
+}
+
+Node Block():
+{
+	Node n;
+	Node child;
+}
+{
+	{ n = new Node("BLOCK"); } 
+	<LBRACK> 
+	(child = Statement() { n.addChild(child); } )* 
+	<RBRACK> 
+	{ return n; } 
+}
+
+Node Exp():
+{
+	Node n;
+	Node child;
+}
+{
+	{n=new Node("EXP"); }
+	child = Term()  { n.addChild(child); }  
+	((
+		<ADD> { n.addChild(new Node("ADD")); } 
+		| 
+		<SUB> { n.addChild(new Node("SUB")); } )
+		child = Term() { n.addChild(child); } 
+	)* 
+	{ return n; } 
+}
+
+Node Term():
+{
+	Node n;
+	Node child;
+}
+{
+	{ n = new Node("TERM"); } 
+	child = Factor() { n.addChild(child); } 
+	((
+		<MUL> { n.addChild(new Node("MUL")); } 
+		| 
+		<DIV> { n.addChild(new Node("DIV")); }  
+		| 
+		<MODULO> { n.addChild(new Node("MODULO")); } 
+	) 
+	child = Factor() { n.addChild(child); } 
+	)*
+	{ return n; } 
+}
+
+Node Factor():
+{
+	Node n;
+	Node child;
+	Token t;
+}
+{
+	{ n = new Node("FACTOR"); } 
+	(t = <ID> { return new IDNode(t.image); } 
+	| 
+	t = <INT> { return new IntNode(t.image); } 
+	| 
+	<LPAREN> 
+	child = Exp() { return child;}  
+	<RPAREN> ) 
+}
